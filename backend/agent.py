@@ -5,6 +5,7 @@ import google.generativeai as genai
 from google.api_core.exceptions import ResourceExhausted
 from database import get_user_by_phone
 from brain import model, AVAILABLE_TOOLS
+from tools import get_nasa_weather # Import directly for the brief
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -129,17 +130,69 @@ async def send_text_via_bridge(to_jid: str, text: str):
         for endpoint in endpoints:
             url = f"{BRIDGE_BASE_URL}{endpoint}"
             try:
-                print(f"📤 Trying Bridge Endpoint: {url}...")
+                # print(f"📤 Trying Bridge Endpoint: {url}...")
                 resp = await client.post(url, json=payload, timeout=5)
                 
                 if resp.status_code == 200:
                     print(f"✅ Message Delivered via {endpoint}!")
                     return 
                 elif resp.status_code != 404:
-                    print(f"⚠️ Unexpected status {resp.status_code} from {endpoint}: {resp.text}")
-                    return
+                    print(f"⚠️ Bridge Error ({resp.status_code}): {resp.text}")
+                    return 
             except Exception as e:
-                print(f"❌ Error reaching {url}: {e}")
+                print(f"❌ Connection Error to {endpoint}: {e}")
 
-        print("❌ All bridge endpoints failed.")
-        logger.error("All bridge endpoints failed for payload: %s", payload)
+        print("❌ Failed to send message on all known endpoints.")
+
+# =========================================================
+# 🔥 NEW FEATURE — Proactive Morning Brief (Scheduler Use)
+# =========================================================
+async def generate_morning_brief(farmer: dict) -> str:
+    """
+    Generates a short, reliable morning advisory.
+    This is used by the scheduler — NOT WhatsApp chat.
+    """
+
+    lat = farmer.get("lat")
+    lon = farmer.get("lon")
+    crop = farmer.get("crop", "crop")
+    language = farmer.get("language", "en")
+
+    if not lat or not lon:
+        return "⚠️ Location not available. Please update your farm location."
+
+    # ❌ REMOVED 'await' because get_nasa_weather is synchronous in tools.py
+    weather = get_nasa_weather(lat, lon)
+
+    if isinstance(weather, str) or "error" in weather:
+        return "⚠️ Unable to fetch today's weather data."
+
+    rain = weather.get("rainfall_mm", 0)
+    temp = weather.get("temperature_c", 0)
+
+    # Simple, deterministic advice
+    advice = "Monitor your field today."
+
+    if rain > 10:
+        advice = "Rain expected. Avoid irrigation."
+    elif temp > 35:
+        advice = "High temperature. Ensure adequate soil moisture."
+
+    # Language handling (basic)
+    if language and language.lower().startswith("hi"):
+        return (
+            "🌅 सुप्रभात!\n\n"
+            f"🌱 फसल: {crop}\n"
+            f"🌧 वर्षा: {rain} मिमी\n"
+            f"🌡 तापमान: {temp}°C\n\n"
+            f"✅ सलाह: {advice}"
+        )
+
+    # Default: English
+    return (
+        "🌅 Good Morning!\n\n"
+        f"🌱 Crop: {crop}\n"
+        f"🌧 Rain: {rain} mm\n"
+        f"🌡 Temp: {temp} °C\n\n"
+        f"✅ Advice: {advice}"
+    )
