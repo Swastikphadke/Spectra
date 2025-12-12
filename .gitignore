@@ -26,3 +26,20 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# --- Backend generated/runtime ---
+backend/chroma_db/
+backend/knowledge_base/
+backend/store/
+backend/static/audio/
+# ignore generated static artifacts
+backend/static/*.png
+backend/static/*.jpg
+backend/static/*.jpeg
+
+# --- WhatsApp bridge runtime artifacts ---
+whatsapp-mcp/whatsapp-bridge/session.db
+whatsapp-mcp/whatsapp-bridge/*.exe
+
+# --- WhatsApp bridge local state (SQLite) ---
+whatsapp-mcp/whatsapp-bridge/store/*.db
