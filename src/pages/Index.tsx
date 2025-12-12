@@ -4,44 +4,80 @@ import { StarsBackground } from "@/components/StarsBackground";
 import { RoleCard } from "@/components/RoleCard";
 import { Tractor, Shield, Building2, Satellite, Leaf, Globe2 } from "lucide-react";
 
+// ✨ Particles
+import Particles from "react-tsparticles";
+import { loadFull } from "tsparticles";
+import { useCallback } from "react";
+
 const Index = () => {
   const { t } = useTranslation();
 
+  // Initialize particles
+  const particlesInit = useCallback(async (engine) => {
+    await loadFull(engine);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="min-h-screen relative overflow-hidden bg-transparent">
+
+      {/* 🌌 PARTICLES ABOVE STARS BUT BELOW UI */}
+      <Particles
+        id="tsparticles"
+        init={particlesInit}
+        className="fixed inset-0 z-0"
+        options={{
+          background: { color: "transparent" },
+          particles: {
+            number: { value: 150 },
+            size: { value: 3 },
+            color: { value: "#ffffff" },
+            move: { speed: 0.6 },
+            opacity: { value: 0.9 },
+          },
+        }}
+      />
+
+      {/* ⭐ STAR BACKGROUND BELOW PARTICLES */}
       <StarsBackground />
-      
-      {/* Orbital rings decoration */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] border border-border/20 rounded-full animate-spin" style={{ animationDuration: "60s" }} />
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-primary/10 rounded-full animate-spin" style={{ animationDuration: "40s", animationDirection: "reverse" }} />
-      
+
+      {/* 🌀 ORBITAL RINGS BELOW BOTH */}
+      <div
+        className="absolute -z-10 top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2
+        w-[800px] h-[800px] border border-border/20 rounded-full animate-spin"
+        style={{ animationDuration: "60s" }}
+      />
+      <div
+        className="absolute -z-10 top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2
+        w-[600px] h-[600px] border border-primary/10 rounded-full animate-spin"
+        style={{ animationDuration: "40s", animationDirection: "reverse" }}
+      />
+
       <Navbar />
-      
+
       <main className="relative z-10 pt-24 pb-16">
-        {/* Hero Section */}
+        {/* HERO SECTION */}
         <section className="container mx-auto px-4 text-center py-16">
           <div className="max-w-4xl mx-auto">
-            {/* Floating satellite icon */}
             <div className="relative inline-block mb-8 animate-float">
               <div className="absolute inset-0 bg-primary/30 blur-2xl rounded-full" />
               <div className="relative bg-card/50 backdrop-blur-xl p-6 rounded-full border border-border/50">
                 <Satellite className="w-16 h-16 text-primary" />
               </div>
             </div>
-            
+
             <p className="text-primary font-medium mb-4 tracking-widest uppercase opacity-0 animate-slide-up stagger-1">
               {t("heroSubtitle")}
             </p>
-            
+
             <h1 className="text-5xl md:text-7xl font-display font-bold mb-6 opacity-0 animate-slide-up stagger-2">
               <span className="text-gradient-gold">{t("heroTitle")}</span>
             </h1>
-            
+
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-12 opacity-0 animate-slide-up stagger-3">
               {t("heroDescription")}
             </p>
-            
-            {/* Feature highlights */}
+
+            {/* FEATURE HIGHLIGHTS */}
             <div className="flex flex-wrap justify-center gap-6 mb-16 opacity-0 animate-slide-up stagger-4">
               <div className="flex items-center gap-2 glass-card px-4 py-2 rounded-full">
                 <Satellite className="w-5 h-5 text-primary" />
@@ -59,12 +95,12 @@ const Index = () => {
           </div>
         </section>
 
-        {/* Role Selection Section */}
+        {/* ROLE SELECTION SECTION */}
         <section className="container mx-auto px-4 py-8">
           <h2 className="text-3xl font-display font-bold text-center mb-12 opacity-0 animate-slide-up stagger-5">
             {t("selectRole")}
           </h2>
-          
+
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             <RoleCard
               icon={Tractor}
@@ -94,7 +130,6 @@ const Index = () => {
         </section>
       </main>
 
-      {/* Footer */}
       <footer className="relative z-10 border-t border-border/50 py-8">
         <div className="container mx-auto px-4 text-center text-muted-foreground text-sm">
           <p>© 2024 AgroSat - Satellite-Powered Farming Solutions</p>
