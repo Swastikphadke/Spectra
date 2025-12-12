@@ -8,11 +8,11 @@ from typing import Optional
 import random
 import os
 import smtplib
+import asyncio
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 import httpx
-from brain import get_spectra_response
 
 # Load environment variables from the parent directory
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
@@ -22,7 +22,24 @@ from tools import get_nasa_weather
 from agent import handle_incoming_message
 from mcp_client import mcp_manager
 
+# 🔥 NEW: Scheduler imports
+from scheduler import scheduler_loop, morning_briefing_job
+
 app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    print("🚀 Initializing MCP Connections...")
+    await mcp_manager.initialize()
+
+    # 🔥 START PROACTIVE MORNING BRIEFING SCHEDULER
+    print("⏰ Starting Morning Briefing Scheduler...")
+    asyncio.create_task(scheduler_loop())
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    print("🛑 Closing MCP Connections...")
+    await mcp_manager.cleanup()
 
 # --- EMAIL UTILS ---
 def send_email_otp(to_email: str, otp: str):
@@ -91,6 +108,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def startup_event():
     print("🚀 Initializing MCP Connections...")
     await mcp_manager.initialize()
+
+    # 🔥 START PROACTIVE MORNING BRIEFING SCHEDULER
+    print("⏰ Starting Morning Briefing Scheduler...")
+    asyncio.create_task(scheduler_loop())
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -208,16 +229,20 @@ def register_farmer(farmer: FarmerRegistration):
 
 @app.post("/whatsapp-webhook")
 async def whatsapp_webhook(request: Request):
-    try:
-        payload = await request.json()
-        print(f"📩 Received WhatsApp Message: {payload}")
-        response = await handle_incoming_message(payload)
-        return {"status": "received", "agent_response": response}
-    except Exception as e:
-        print(f"❌ Error in Webhook: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    payload = await request.json()
+    print(f"📩 WhatsApp Payload: {payload}")
+    response = await handle_incoming_message(payload)
+    return {"status": "received", "agent_response": response}
 
 @app.get("/api/test-nasa")
-def test_nasa(lat: float, lon: float):
-    data = get_nasa_weather(lat, lon)
-    return data
+async def test_nasa(lat: float, lon: float):
+    return await get_nasa_weather(lat, lon)
+
+# 🔥 DEMO / ADMIN TRIGGER (VERY IMPORTANT)
+@app.post("/admin/run-morning-brief")
+async def run_morning_brief_now():
+    """Manually triggers the morning briefing for all farmers."""
+    # Run in background so request returns immediately
+    asyncio.create_task(morning_briefing_job())
+
+    return {"status": "success", "message": "Morning briefing job has been triggered."}
