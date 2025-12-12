@@ -1,5 +1,6 @@
 import logging
 import httpx
+import os
 import google.generativeai as genai
 from database import get_user_by_phone
 from brain import model, AVAILABLE_TOOLS
@@ -8,7 +9,9 @@ from brain import model, AVAILABLE_TOOLS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BRIDGE_URL = "http://localhost:8080/api/send"
+# Endpoints
+BRIDGE_TEXT_URL = "http://localhost:8080/api/send"
+BRIDGE_IMAGE_URL = "http://localhost:8080/send/image"
 
 def resolve_jid(sender_raw):
     """Standardizes JID for the WhatsApp Bridge."""
@@ -25,7 +28,7 @@ async def handle_incoming_message(payload: dict):
     sender_raw = payload.get("from", "")
     user_text = payload.get("content", "")
     
-    if not sender_raw or not user_text: 
+    if not sender_raw: 
         return "Ignored"
 
     # 1. Database Lookup
@@ -35,8 +38,8 @@ async def handle_incoming_message(payload: dict):
 
     if not user:
         msg = "Namaste! 🙏 Please register your farm via our map portal first so I can analyze your crop data."
-        await send_via_bridge(recipient_id, msg)
-        return msg
+        await send_text_via_bridge(recipient_id, msg)
+        return "Register Prompt"
 
     # 2. Autonomous Reasoning Loop
     try:
@@ -70,11 +73,22 @@ async def handle_incoming_message(payload: dict):
             # Execute the tool
             if fn_name in AVAILABLE_TOOLS:
                 tool_result = await AVAILABLE_TOOLS[fn_name](**fn_args)
+
+                # 📸 IMAGE DETECTION LOGIC
+                # If the tool generated an image, send it IMMEDIATELY
+                if isinstance(tool_result, dict) and "image_path" in tool_result:
+                    image_path = tool_result["image_path"]
+                    logger.info(f"📸 Detected Image: {image_path}")
+                    
+                    # Send the image to WhatsApp
+                    await send_image_via_bridge(recipient_id, image_path, "Here is your Satellite Health Scan 🛰️")
+                    
+                    # Modify result for Gemini so it knows we sent it
+                    tool_result["system_note"] = "Image sent to user successfully via WhatsApp."
             else:
                 tool_result = f"Error: Tool '{fn_name}' not recognized."
 
-            # ✅ FIX: Use genai.protos for strict Protobuf alignment
-            # This resolves the 'module types has no attribute Part' error
+            # Feed result back to Gemini
             response = await chat.send_message_async(
                 genai.protos.Content(
                     parts=[genai.protos.Part(
@@ -94,18 +108,88 @@ async def handle_incoming_message(payload: dict):
         ai_reply = "I'm checking the satellite feeds for your farm. Please wait a moment!"
 
     # 3. Send final advice back via Bridge
-    await send_via_bridge(recipient_id, ai_reply)
+    await send_text_via_bridge(recipient_id, ai_reply)
     return ai_reply
 
-async def send_via_bridge(to_jid: str, text: str):
-    """REST API call to the WhatsApp bridge."""
+# --- 📤 TEXT SENDER ---
+async def send_text_via_bridge(to_jid: str, text: str):
+    """REST API call to the WhatsApp bridge for text."""
     async with httpx.AsyncClient() as client:
         payload = {"recipient": to_jid, "message": text}
         try:
-            resp = await client.post(BRIDGE_URL, json=payload, timeout=15.0)
+            resp = await client.post(BRIDGE_TEXT_URL, json=payload, timeout=15.0)
             if resp.status_code == 200:
-                logger.info(f"✅ Advice delivered to {to_jid}")
+                logger.info(f"✅ Text delivered to {to_jid}")
             else:
                 logger.error(f"⚠️ Bridge Error: {resp.text}")
         except Exception as e:
             logger.error(f"❌ Failed to reach Bridge: {e}")
+
+# --- 📸 IMAGE SENDER (NEW) ---
+async def send_image_via_bridge(to_jid: str, file_path: str, caption: str = ""):
+    """Uploads the file to the bridge using Multipart Form Data."""
+    if not os.path.exists(file_path):
+        logger.error(f"❌ File not found: {file_path}")
+        return
+
+    async with httpx.AsyncClient() as client:
+        try:
+            # 1. Read file binary
+            with open(file_path, 'rb') as f:
+                file_content = f.read()
+
+            # 2. Prepare Multipart (Try 'image' key first, it's most common)
+            files = {
+                'image': (os.path.basename(file_path), file_content, 'image/png')
+            }
+            
+            # 3. Data Payload (Send both 'phone' and 'id' to be safe)
+            data = {
+                "phone": to_jid.replace("@s.whatsapp.net", ""), # Some bridges want just the number
+                "caption": caption,
+                "view_once": "false",
+                "compress": "true"
+            }
+
+            logger.info(f"📤 Uploading image to: {BRIDGE_IMAGE_URL}")
+            
+            resp = await client.post(BRIDGE_IMAGE_URL, data=data, files=files, timeout=30)
+            
+            if resp.status_code == 200:
+                logger.info("✅ Image sent successfully!")
+            else:
+                logger.error(f"⚠️ Upload Failed {resp.status_code}: {resp.text}")
+                # Fallback: Try /api/send-image if /send/image failed
+                if resp.status_code == 404:
+                     logger.warning("Trying fallback endpoint: /api/send-image")
+                     await client.post("http://localhost:8080/api/send-image", data=data, files=files)
+
+        except Exception as e:
+            logger.error(f"❌ Image Send Error: {e}")
+    """Uploads the file to the bridge using Multipart Form Data."""
+    if not os.path.exists(file_path):
+        logger.error(f"❌ File not found: {file_path}")
+        return
+
+    async with httpx.AsyncClient() as client:
+        try:
+            # Prepare Multipart Upload
+            files = {
+                'file': (os.path.basename(file_path), open(file_path, 'rb'), 'image/png')
+            }
+            # Most bridges use 'phone', 'recipient', or 'jid'
+            data = {
+                "recipient": to_jid,
+                "phone": to_jid, # Sending both to be safe
+                "caption": caption
+            }
+            
+            logger.info(f"📤 Uploading image to Bridge: {BRIDGE_IMAGE_URL}")
+            resp = await client.post(BRIDGE_IMAGE_URL, data=data, files=files, timeout=30)
+            
+            if resp.status_code == 200:
+                logger.info("✅ Image sent successfully!")
+            else:
+                logger.error(f"⚠️ Image Upload Failed {resp.status_code}: {resp.text}")
+        except Exception as e:
+            logger.error(f"❌ Error uploading image: {e}")
