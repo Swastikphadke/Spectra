@@ -1,0 +1,3 @@
+[submodule "NASA-MCP-server"]
+	path = NASA-MCP-server
+	url = https://github.com/ProgramComputer/NASA-MCP-server.git
