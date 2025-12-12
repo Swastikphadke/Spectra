@@ -7,11 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Tractor, ArrowLeft, MessageCircle, CheckCircle2 } from "lucide-react";
+import { Tractor, ArrowLeft, MessageCircle, CheckCircle2, MapPin } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const FarmerAuth = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation(); // Get i18n instance
   const navigate = useNavigate();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [formData, setFormData] = useState({
@@ -19,7 +19,54 @@ const FarmerAuth = () => {
     phone: "",
     aadhar: "",
     bankAccount: "",
+    crop: "", // Optional
+    lat: "",  // Optional
+    long: "", // Optional
   });
+
+  // Helper to map language codes to Backend names
+  const getLanguageName = (code: string) => {
+    const langMap: Record<string, string> = {
+      'en': 'English',
+      'hi': 'Hindi',
+      'kn': 'Kannada',
+      'te': 'Telugu',
+      'ta': 'Tamil'
+    };
+    // Return mapped name or capitalize the code
+    return langMap[code] || code.charAt(0).toUpperCase() + code.slice(1);
+  };
+
+  const handleGetLocation = () => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setFormData(prev => ({
+            ...prev,
+            lat: position.coords.latitude.toFixed(6),
+            long: position.coords.longitude.toFixed(6)
+          }));
+          toast({
+            title: "Location Detected",
+            description: "Coordinates updated successfully.",
+          });
+        },
+        (error) => {
+          toast({
+            title: "Location Error",
+            description: "Could not fetch location. Please enter manually or skip.",
+            variant: "destructive",
+          });
+        }
+      );
+    } else {
+      toast({
+        title: "Not Supported",
+        description: "Geolocation is not supported by your browser.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +74,7 @@ const FarmerAuth = () => {
     if (!formData.name || !formData.phone || !formData.aadhar || !formData.bankAccount) {
       toast({
         title: "Error",
-        description: "Please fill all fields",
+        description: "Please fill all mandatory fields",
         variant: "destructive",
       });
       return;
@@ -51,27 +98,49 @@ const FarmerAuth = () => {
       return;
     }
 
-    // ⭐ SEND TO BACKEND JSON STORAGE
-    await fetch("http://localhost:8000/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        role: "farmer",
-        ...formData,
-        timestamp: new Date().toISOString(),
-      }),
-    });
+    try {
+      // ⭐ SEND TO BACKEND JSON STORAGE
+      const response = await fetch("http://localhost:8000/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: "farmer",
+          name: formData.name,
+          phone_number: formData.phone,
+          aadhar: formData.aadhar,
+          bank_acc: formData.bankAccount,
+          // Optional Fields
+          crop: formData.crop || null,
+          lat: formData.lat ? parseFloat(formData.lat) : null,
+          long: formData.long ? parseFloat(formData.long) : null,
+          // Dynamic Language
+          language: getLanguageName(i18n.language), 
+          timestamp: new Date().toISOString(),
+        }),
+      });
 
-    setIsSubmitted(true);
-    toast({
-      title: "Registration Successful",
-      description: "Please share your location on WhatsApp",
-    });
+      if (!response.ok) {
+        throw new Error("Registration failed");
+      }
+
+      setIsSubmitted(true);
+      toast({
+        title: "Registration Successful",
+        description: "Profile created successfully!",
+      });
+    } catch (error) {
+      console.error("Error registering:", error);
+      toast({
+        title: "Registration Failed",
+        description: "Could not connect to server. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleWhatsAppShare = () => {
     const message = encodeURIComponent(
-      `Hello! I am ${formData.name}. I have registered on AgroSat. Here is my farm location:`
+      `Hello! I am ${formData.name}. I have registered on AgroSat.`
     );
     window.open(`https://wa.me/?text=${message}`, "_blank");
   };
@@ -99,8 +168,9 @@ const FarmerAuth = () => {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Mandatory Fields */}
                   <div className="space-y-2">
-                    <Label htmlFor="name">{t("name")}</Label>
+                    <Label htmlFor="name">{t("name")} *</Label>
                     <Input
                       id="name"
                       value={formData.name}
@@ -110,7 +180,7 @@ const FarmerAuth = () => {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="phone">{t("phone")}</Label>
+                    <Label htmlFor="phone">{t("phone")} *</Label>
                     <Input
                       id="phone"
                       type="tel"
@@ -121,7 +191,7 @@ const FarmerAuth = () => {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="aadhar">{t("aadhar")}</Label>
+                    <Label htmlFor="aadhar">{t("aadhar")} *</Label>
                     <Input
                       id="aadhar"
                       value={formData.aadhar}
@@ -131,7 +201,7 @@ const FarmerAuth = () => {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="bankAccount">{t("bankAccount")}</Label>
+                    <Label htmlFor="bankAccount">{t("bankAccount")} *</Label>
                     <Input
                       id="bankAccount"
                       value={formData.bankAccount}
@@ -139,6 +209,48 @@ const FarmerAuth = () => {
                       placeholder="Bank account number"
                     />
                   </div>
+
+                  {/* Optional Fields */}
+                  <div className="space-y-2">
+                    <Label htmlFor="crop">Crop Type (Optional)</Label>
+                    <Input
+                      id="crop"
+                      value={formData.crop}
+                      onChange={(e) => setFormData({ ...formData, crop: e.target.value })}
+                      placeholder="e.g. Wheat, Rice, Cotton"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="lat">Latitude (Optional)</Label>
+                      <Input
+                        id="lat"
+                        value={formData.lat}
+                        onChange={(e) => setFormData({ ...formData, lat: e.target.value })}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="long">Longitude (Optional)</Label>
+                      <Input
+                        id="long"
+                        value={formData.long}
+                        onChange={(e) => setFormData({ ...formData, long: e.target.value })}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={handleGetLocation}
+                  >
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Get Current Location
+                  </Button>
                   
                   <Button type="submit" variant="gold" className="w-full" size="lg">
                     {t("submit")}
