@@ -221,12 +221,19 @@ func sendWhatsAppMessage(client *whatsmeow.Client, recipient string, message str
 			return false, fmt.Sprintf("Error parsing JID: %v", err)
 		}
 	} else {
+		// Clean the recipient number
+		cleanRecipient := strings.ReplaceAll(recipient, "whatsapp:", "")
+		cleanRecipient = strings.ReplaceAll(cleanRecipient, "+", "")
+		cleanRecipient = strings.TrimSpace(cleanRecipient)
+
 		// Create JID from phone number
 		recipientJID = types.JID{
-			User:   recipient,
+			User:   cleanRecipient,
 			Server: "s.whatsapp.net", // For personal chats
 		}
 	}
+
+	fmt.Printf("Sending message to JID: %s\n", recipientJID.String())
 
 	msg := &waProto.Message{}
 
@@ -465,6 +472,31 @@ func handleMessage(client *whatsmeow.Client, messageStore *MessageStore, msg *ev
 			fmt.Printf("[%s] %s %s: [%s: %s] %s\n", timestamp, direction, sender, mediaType, filename, content)
 		} else if content != "" {
 			fmt.Printf("[%s] %s %s: %s\n", timestamp, direction, sender, content)
+		}
+
+		// --- WEBHOOK INTEGRATION ---
+		// Send incoming messages to the Python Backend
+		if !msg.Info.IsFromMe {
+			webhookPayload := map[string]string{
+				"from":    "whatsapp:+" + sender,
+				"type":    "text",
+				"content": content,
+			}
+			if mediaType != "" {
+				webhookPayload["type"] = mediaType
+			}
+
+			jsonData, _ := json.Marshal(webhookPayload)
+			// Fire and forget - don't block main thread too long
+			go func() {
+				resp, err := http.Post("http://localhost:8000/whatsapp-webhook", "application/json", bytes.NewBuffer(jsonData))
+				if err != nil {
+					// Log error if backend is unreachable
+					fmt.Printf("Warning: Failed to send webhook: %v\n", err)
+				} else {
+					defer resp.Body.Close()
+				}
+			}()
 		}
 	}
 }
