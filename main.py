@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware # Import CORS
 from pydantic import BaseModel
 from typing import Optional
 from database import save_user
+from tools import get_nasa_weather
 
 app = FastAPI()
 
@@ -48,9 +49,10 @@ def register_farmer(farmer: FarmerRegistration):
             language=farmer.language,
             # Pass None if they aren't provided yet
             lat=farmer.lat,
-            lon=farmer.long,
+            lon=farmer.long,  # <--- CRITICAL: Map 'long' (frontend) to 'lon' (database)
             crop=farmer.crop
         )
+        
         return {
             "status": "success", 
             "message": "Farmer Registered", 
@@ -61,4 +63,10 @@ def register_farmer(farmer: FarmerRegistration):
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Run with: uvicorn main:app --reload
+@app.get("/api/test-nasa")
+def test_nasa(lat: float, lon: float):
+    """
+    Test endpoint to see if NASA API is returning data.
+    """
+    data = get_nasa_weather(lat, lon)
+    return data
