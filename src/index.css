@@ -1,0 +1,206 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Cosmic Agriculture Theme */
+    --background: 230 35% 7%;
+    --foreground: 210 40% 98%;
+
+    --card: 230 30% 12%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 230 30% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 45 93% 58%;
+    --primary-foreground: 230 35% 7%;
+
+    --secondary: 230 25% 18%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 230 20% 15%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 160 84% 39%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 230 25% 20%;
+    --input: 230 25% 18%;
+    --ring: 45 93% 58%;
+
+    --radius: 0.75rem;
+
+    /* Custom colors */
+    --cosmic-blue: 230 80% 55%;
+    --cosmic-purple: 265 80% 50%;
+    --nebula-pink: 330 80% 60%;
+    --star-white: 210 40% 98%;
+    --earth-green: 160 84% 39%;
+    --crop-gold: 45 93% 58%;
+    --soil-brown: 30 40% 25%;
+
+    /* Gradients */
+    --gradient-cosmic: linear-gradient(135deg, hsl(230 80% 55%) 0%, hsl(265 80% 50%) 50%, hsl(330 80% 60%) 100%);
+    --gradient-space: linear-gradient(180deg, hsl(230 35% 7%) 0%, hsl(230 30% 15%) 50%, hsl(230 25% 20%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(45 93% 58%) 0%, hsl(35 93% 50%) 100%);
+    --gradient-earth: linear-gradient(135deg, hsl(160 84% 39%) 0%, hsl(160 60% 30%) 100%);
+
+    /* Shadows */
+    --shadow-glow: 0 0 40px hsl(45 93% 58% / 0.3);
+    --shadow-cosmic: 0 0 60px hsl(230 80% 55% / 0.2);
+    --shadow-card: 0 4px 30px hsl(0 0% 0% / 0.3);
+
+    --sidebar-background: 230 30% 10%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 45 93% 58%;
+    --sidebar-primary-foreground: 230 35% 7%;
+    --sidebar-accent: 230 25% 18%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 230 25% 20%;
+    --sidebar-ring: 45 93% 58%;
+  }
+
+  .dark {
+    --background: 230 35% 7%;
+    --foreground: 210 40% 98%;
+    --card: 230 30% 12%;
+    --card-foreground: 210 40% 98%;
+    --popover: 230 30% 10%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 45 93% 58%;
+    --primary-foreground: 230 35% 7%;
+    --secondary: 230 25% 18%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 230 20% 15%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 160 84% 39%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 230 25% 20%;
+    --input: 230 25% 18%;
+    --ring: 45 93% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  .text-gradient-cosmic {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-cosmic);
+  }
+
+  .text-gradient-gold {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-gold);
+  }
+
+  .bg-gradient-cosmic {
+    background-image: var(--gradient-cosmic);
+  }
+
+  .bg-gradient-space {
+    background-image: var(--gradient-space);
+  }
+
+  .bg-gradient-gold {
+    background-image: var(--gradient-gold);
+  }
+
+  .glow-gold {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .glow-cosmic {
+    box-shadow: var(--shadow-cosmic);
+  }
+
+  .glass-card {
+    @apply bg-card/50 backdrop-blur-xl border border-border/50;
+  }
+}
+
+/* Star animation */
+@keyframes twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes orbit {
+  0% { transform: rotate(0deg) translateX(100px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(100px) rotate(-360deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px hsl(45 93% 58% / 0.3); }
+  50% { box-shadow: 0 0 40px hsl(45 93% 58% / 0.6); }
+}
+
+@keyframes slide-up {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-twinkle {
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-orbit {
+  animation: orbit 20s linear infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.6s ease-out forwards;
+}
+
+/* Stagger animations */
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+
+/* Stars background */
+.stars-bg {
+  background-image: 
+    radial-gradient(2px 2px at 20px 30px, hsl(210 40% 98%), transparent),
+    radial-gradient(2px 2px at 40px 70px, hsl(210 40% 90%), transparent),
+    radial-gradient(1px 1px at 90px 40px, hsl(210 40% 98%), transparent),
+    radial-gradient(2px 2px at 130px 80px, hsl(210 40% 85%), transparent),
+    radial-gradient(1px 1px at 160px 120px, hsl(210 40% 98%), transparent);
+  background-repeat: repeat;
+  background-size: 200px 200px;
+}
