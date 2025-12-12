@@ -11,6 +11,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
+import httpx
+from brain import get_spectra_response
 
 # Load environment variables from the parent directory
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
@@ -178,8 +180,14 @@ def save_farmer_frontend(farmer: FarmerRegistration):
 def register_farmer(farmer: FarmerRegistration):
     try:
         print(f"Incoming Data: {farmer.dict()}")
+        
+        # Ensure phone number starts with 91
+        formatted_phone = farmer.phone_number
+        if not formatted_phone.startswith("91"):
+            formatted_phone = "91" + formatted_phone
+            
         result = save_user(
-            phone=farmer.phone_number,
+            phone=formatted_phone,
             name=farmer.name,
             aadhar=farmer.aadhar,
             bank_acc=farmer.bank_acc,
