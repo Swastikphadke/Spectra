@@ -31,6 +31,7 @@ def run_system():
     print("   - Backend: http://localhost:8000")
     print("   - Bridge:  http://localhost:8080")
     print("   - Webhook: http://localhost:8000/whatsapp-webhook")
+    print("   - OTP System: Active (Integrated in Backend)")
     print("\nPress Ctrl+C to stop all services.")
 
     try:
