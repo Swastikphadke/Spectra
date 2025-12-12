@@ -1,11 +1,19 @@
 # main.py
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.exceptions import RequestValidationError # Import this
-from fastapi.responses import JSONResponse # Import this
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 import random
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
+
+# Load environment variables from the parent directory
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
 from database import save_user
 from tools import get_nasa_weather
@@ -13,6 +21,46 @@ from agent import handle_incoming_message
 from mcp_client import mcp_manager
 
 app = FastAPI()
+
+# --- EMAIL UTILS ---
+def send_email_otp(to_email: str, otp: str):
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", 587))
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASS")
+    
+    if not smtp_user or not smtp_pass:
+        print("⚠️ SMTP Credentials missing. Printing OTP to console instead.")
+        print(f"📧 [MOCK EMAIL] To: {to_email} | OTP: {otp}")
+        return
+
+    msg = MIMEMultipart()
+    msg['From'] = f"Spectra <{smtp_user}>"
+    msg['To'] = to_email
+    msg['Subject'] = "Your Spectra Verification Code"
+
+    body = f"""
+    <html>
+        <body>
+            <h2>Your Verification Code</h2>
+            <p>Please use the following OTP to complete your verification:</p>
+            <h1 style="color: #4CAF50; font-size: 32px; letter-spacing: 5px;">{otp}</h1>
+            <p>This code is valid for 10 minutes.</p>
+        </body>
+    </html>
+    """
+    msg.attach(MIMEText(body, 'html'))
+
+    try:
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.send_message(msg)
+        server.quit()
+        print(f"✅ Email sent to {to_email}")
+    except Exception as e:
+        print(f"❌ Failed to send email: {e}")
+        raise e
 
 # --- 🛠️ DEBUGGING: CATCH 422 ERRORS ---
 @app.exception_handler(RequestValidationError)
@@ -69,10 +117,13 @@ class FarmerRegistration(BaseModel):
     crop: Optional[str] = None
 
 class OTPRequest(BaseModel):
-    phone_number: str
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+    role: Optional[str] = None
 
 class OTPVerify(BaseModel):
-    phone_number: str
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
     otp: str
 
 # --- IN-MEMORY OTP STORAGE ---
@@ -87,22 +138,36 @@ def read_root():
 @app.post("/send-otp")
 def send_otp(request: OTPRequest):
     try:
+        identifier = request.phone_number or request.email
+        if not identifier:
+            return {"success": False, "error": "Phone number or Email required"}
+
         otp = str(random.randint(100000, 999999))
-        otp_storage[request.phone_number] = otp
-        print(f"\n🔐 [OTP SYSTEM] Generated OTP for {request.phone_number}: {otp}\n")
-        return {"status": "success", "message": "OTP sent successfully"}
+        otp_storage[identifier] = otp
+        
+        print(f"\n🔐 [OTP SYSTEM] Generated OTP for {identifier}: {otp}\n")
+        
+        # Send Email if identifier is an email
+        if request.email and "@" in request.email:
+            send_email_otp(request.email, otp)
+
+        return {"success": True}
     except Exception as e:
         print(f"Error sending OTP: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"success": False, "error": str(e)}
 
 @app.post("/verify-otp")
 def verify_otp(request: OTPVerify):
-    stored_otp = otp_storage.get(request.phone_number)
+    identifier = request.phone_number or request.email
+    if not identifier:
+        return {"success": False, "error": "Phone number or Email required"}
+
+    stored_otp = otp_storage.get(identifier)
     if stored_otp and stored_otp == request.otp:
-        del otp_storage[request.phone_number]
-        return {"status": "success", "message": "OTP Verified"}
+        del otp_storage[identifier]
+        return {"success": True}
     else:
-        raise HTTPException(status_code=400, detail="Invalid or Expired OTP")
+        return {"success": False, "error": "Invalid or Expired OTP"}
 
 @app.post("/save")
 def save_farmer_frontend(farmer: FarmerRegistration):
