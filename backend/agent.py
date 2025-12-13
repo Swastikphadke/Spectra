@@ -25,6 +25,74 @@ logger = logging.getLogger(__name__)
 BRIDGE_BASE_URL = "http://localhost:8080"
 
 
+def _is_health_request(text: str) -> bool:
+    t = (text or "").lower()
+    return "health" in t or "ndvi" in t or "crop health" in t
+
+
+async def _handle_health_request(user: dict, recipient_id: str) -> None:
+    """Health flow: use NASA MCP (location satellite data) + GIS MCP (NDVI)."""
+    try:
+        try:
+            from mcp_client import get_nasa_weather_mcp, calculate_ndvi_mcp
+        except ImportError:
+            from backend.mcp_client import get_nasa_weather_mcp, calculate_ndvi_mcp
+
+        lat = user.get("lat") or (user.get("location", {}) or {}).get("lat")
+        lon = user.get("lon") or (user.get("location", {}) or {}).get("lon")
+        crop = user.get("crop", "crop")
+        if lat is None or lon is None:
+            await send_text_via_bridge(recipient_id, "⚠️ I need your farm location (lat/lon) to check crop health.")
+            return
+
+        # NASA MCP: fetch satellite weather/soil moisture for this location (best-effort)
+        nasa_raw = await get_nasa_weather_mcp(float(lat), float(lon))
+
+        # GIS MCP: NDVI (mocked by GIS-Real server)
+        ndvi_raw = await calculate_ndvi_mcp(float(lat), float(lon))
+
+        ndvi_val: Optional[float] = None
+        try:
+            ndvi_val = float(ndvi_raw)
+        except Exception:
+            ndvi_val = None
+
+        status = "Unknown"
+        if ndvi_val is not None:
+            if ndvi_val >= 0.6:
+                status = "Healthy"
+            elif ndvi_val >= 0.4:
+                status = "Moderate"
+            else:
+                status = "Stressed"
+
+        text_part = (
+            "🌱 **Crop Health Summary:**\n"
+            f"Your crop looks **{status}** based on satellite-style NDVI.\n\n"
+            "🧠 **What This Means:**\n"
+            "Healthy = strong growth, Moderate = needs attention, Stressed = urgent care.\n\n"
+            "📍 **Field Observation:**\n"
+            f"Location used: lat {lat}, lon {lon}. Crop: {crop}.\n\n"
+            "✅ **What You Should Do:**\n"
+            "1) Check low-growth patches today.\n2) Check soil moisture near roots.\n3) Irrigate only if soil is dry.\n\n"
+            f"📡 NDVI: {ndvi_val if ndvi_val is not None else 'unavailable'}\n"
+        )
+
+        voice_part = (
+            f"Namaste! Your crop health looks {status.lower()}. "
+            "Please check the soil moisture and the weaker patches today."
+        )
+
+        await send_text_via_bridge(recipient_id, text_part)
+
+        lang = "hi" if "hindi" in str(user.get("language", "")).lower() else "en"
+        await send_voice_note(recipient_id, voice_part, language=lang)
+
+    except Exception as e:
+        logger.error("Health request failed: %s", e, exc_info=True)
+        await send_text_via_bridge(recipient_id, "⚠️ Couldn't fetch crop health right now. Please try again.")
+
+
 def _safe_import_rag() -> Optional[Callable[[str], str]]:
     """RAG is optional (langchain deps may be missing)."""
     try:
@@ -198,6 +266,11 @@ async def handle_incoming_message(payload: dict):
         await send_text_via_bridge(recipient_id, "Welcome to Spectra! 🌾\nI don't recognize this number. Please register via the app first.")
         return "Register Prompt"
 
+    # If user asks about crop health, do the deterministic NASA+GIS MCP flow
+    if _is_health_request(user_text):
+        await _handle_health_request(user, recipient_id)
+        return "Health Done"
+
     # Persist sender_jid for proactive messaging (scheduler)
     if reply_to_jid:
         try:
@@ -248,12 +321,7 @@ async def handle_incoming_message(payload: dict):
 
             if voice_part:
                 lang = "hi" if "hindi" in str(user.get("language", "")).lower() else "en"
-                url_path = await send_voice_note(recipient_id, voice_part, language=lang)
-                if url_path:
-                    await send_text_via_bridge(
-                        recipient_id,
-                        f"🎧 Voice note: http://localhost:8000{url_path}",
-                    )
+                await send_voice_note(recipient_id, voice_part, language=lang)
         else:
             await send_text_via_bridge(recipient_id, ai_reply)
 

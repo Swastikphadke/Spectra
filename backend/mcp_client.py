@@ -123,6 +123,15 @@ async def get_gis_data_mcp(location: str):
     except Exception as e:
         return {"error": str(e)}
 
+
+async def calculate_ndvi_mcp(lat: float, lon: float):
+    """Calculate NDVI via the GIS MCP server."""
+    try:
+        result = await mcp_manager.call_gis_tool("calculate_ndvi", {"lat": lat, "long": lon})
+        return result.content[0].text
+    except Exception as e:
+        return {"error": str(e)}
+
 async def get_nasa_apod_mcp():
     """
     Fetches the Astronomy Picture of the Day.
