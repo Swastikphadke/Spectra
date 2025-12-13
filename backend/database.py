@@ -1,25 +1,23 @@
 from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import datetime
+import random
 
-# 1. Load variables
 load_dotenv()
 MONGO_URI = os.getenv("MONGO_URI")
 
-# 2. Connect
 try:
     client = MongoClient(MONGO_URI)
     db = client['agrispace_db'] 
     users_collection = db['users']
+    claims_collection = db['claims']
     print("✅ Database: Connected successfully!")
 except Exception as e:
     print(f"❌ Database Connection Failed: {e}")
 
-# --- FUNCTION 1: For Backend Registration (Member 2) ---
 def save_user(phone: str, name: str, aadhar: str, bank_acc: str, language: str, lat: Optional[float] = None, lon: Optional[float] = None, crop: Optional[str] = None):
-    """Save or Update farmer in MongoDB"""
     user_data = {
         "phone": phone,
         "name": name,
@@ -29,10 +27,8 @@ def save_user(phone: str, name: str, aadhar: str, bank_acc: str, language: str, 
         "last_active": datetime.datetime.now()
     }
     
-    # Handle Location (Critical for Map)
     if lat is not None and lon is not None:
         user_data["location"] = {"lat": lat, "lon": lon}
-        # Flatten for easy access if needed
         user_data["lat"] = lat
         user_data["lon"] = lon
 
@@ -47,41 +43,53 @@ def save_user(phone: str, name: str, aadhar: str, bank_acc: str, language: str, 
     print(f"✅ User {name} saved.")
     return result.upserted_id or "Updated"
 
-# --- FUNCTION 2: For AI Agent (Member 3) ---
 def get_user_by_phone(phone: str):
-    """Required by agent.py to identify users"""
-    # Try exact match first
     user = users_collection.find_one({"phone": phone})
     if not user:
-        # Try matching without the "whatsapp:" prefix just in case
         clean_phone = phone.replace("whatsapp:", "")
         user = users_collection.find_one({"phone": {"$regex": clean_phone}})
     return user
 
-# --- FUNCTION 3: For Morning Briefing (Member 4 - You) ---
 def get_all_farmers():
-    """Required by scheduler.py"""
     return list(users_collection.find())
 
+def get_all_farmers_with_risk():
+    farmers = list(users_collection.find({}, {"_id": 0}))
+    enhanced_farmers = []
+    
+    for f in farmers:
+        if "risk_score" not in f:
+            f["risk_score"] = random.randint(10, 95)
+            f["ndvi_history"] = [random.uniform(0.1, 0.8) for _ in range(5)]
+        
+        if "crop" not in f or not f["crop"]:
+            f["crop"] = "Unknown"
+            
+        enhanced_farmers.append(f)
+        
+    return enhanced_farmers
 
-def update_user_sender_jid(phone: str, sender_jid: str):
-    """Store the last WhatsApp sender JID for proactive messaging.
+def create_claim_record(phone: str, claim_type: str):
+    user = get_user_by_phone(phone)
+    farmer_name = user.get("name", "Unknown") if user else "Unknown"
 
-    WhatsApp E2E sessions are reliably established after the user has messaged us.
-    We store the AD-JID / sender jid so the scheduler can message the correct device.
-    """
-    if not phone or not sender_jid:
-        return False
+    claim = {
+        "claim_id": f"CLM-{random.randint(10000, 99999)}",
+        "phone": phone,
+        "farmer_name": farmer_name,
+        "claim_type": claim_type,
+        "date": datetime.datetime.now().isoformat(),
+        "status": "Pending",
+        "ai_analysis": "Pending"
+    }
+    claims_collection.insert_one(claim)
+    return claim
 
-    users_collection.update_one(
-        {"phone": phone},
-        {
-            "$set": {
-                "sender_jid": sender_jid,
-                "last_sender_jid": sender_jid,
-                "last_active": datetime.datetime.now(),
-            }
-        },
-        upsert=False,
+def get_all_claims_data():
+    return list(claims_collection.find({}, {"_id": 0}))
+
+def update_claim_status(claim_id: str, status: str, analysis: str):
+    claims_collection.update_one(
+        {"claim_id": claim_id},
+        {"$set": {"status": status, "ai_analysis": analysis}}
     )
-    return True
