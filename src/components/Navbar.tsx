@@ -15,7 +15,7 @@ export const Navbar = () => {
             <Satellite className="h-8 w-8 text-primary relative z-10 group-hover:rotate-12 transition-transform duration-300" />
           </div>
           <span className="font-display text-xl font-bold text-gradient-gold">
-            AgroSat
+            SPECTRA
           </span>
         </Link>
 
