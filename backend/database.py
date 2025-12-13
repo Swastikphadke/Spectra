@@ -62,3 +62,26 @@ def get_user_by_phone(phone: str):
 def get_all_farmers():
     """Required by scheduler.py"""
     return list(users_collection.find())
+
+
+def update_user_sender_jid(phone: str, sender_jid: str):
+    """Store the last WhatsApp sender JID for proactive messaging.
+
+    WhatsApp E2E sessions are reliably established after the user has messaged us.
+    We store the AD-JID / sender jid so the scheduler can message the correct device.
+    """
+    if not phone or not sender_jid:
+        return False
+
+    users_collection.update_one(
+        {"phone": phone},
+        {
+            "$set": {
+                "sender_jid": sender_jid,
+                "last_sender_jid": sender_jid,
+                "last_active": datetime.datetime.now(),
+            }
+        },
+        upsert=False,
+    )
+    return True

@@ -1,8 +1,8 @@
-# main.py
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional
 import random
@@ -13,33 +13,64 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 import httpx
+import logging
 
-# Load environment variables from the parent directory
+# Load environment variables
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
-from database import save_user
-from tools import get_nasa_weather
-from agent import handle_incoming_message
-from mcp_client import mcp_manager
+try:
+    from database import save_user
+    from tools import get_nasa_weather
+    from agent import handle_incoming_message
+except ImportError:
+    from backend.database import save_user
+    from backend.tools import get_nasa_weather
+    from backend.agent import handle_incoming_message
 
-# 🔥 NEW: Scheduler imports
-from scheduler import scheduler_loop, morning_briefing_job
+# MCP is optional (can be missing in hackathon env)
+try:
+    from mcp_client import mcp_manager
+except Exception:
+    try:
+        from backend.mcp_client import mcp_manager
+    except Exception:
+        mcp_manager = None
+
+try:
+    from scheduler import scheduler_loop, morning_briefing_job
+except ImportError:
+    from backend.scheduler import scheduler_loop, morning_briefing_job
+
+# Configure Logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("MAIN")
 
 app = FastAPI()
 
+# Serve backend/static at /static so MP3 links work
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+os.makedirs(STATIC_DIR, exist_ok=True)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# --- LIFECYCLE EVENTS ---
 @app.on_event("startup")
 async def startup_event():
-    print("🚀 Initializing MCP Connections...")
-    await mcp_manager.initialize()
-
-    # 🔥 START PROACTIVE MORNING BRIEFING SCHEDULER
-    print("⏰ Starting Morning Briefing Scheduler...")
-    asyncio.create_task(scheduler_loop())
+    # Initialize MCP if available
+    if mcp_manager is not None:
+        await mcp_manager.initialize()
+    
+    # FIX: Prevent Double Scheduler using a simple flag check
+    # The reloader sometimes runs startup twice. We only want one scheduler.
+    if not hasattr(app.state, "scheduler_started"):
+        app.state.scheduler_started = True
+        import asyncio
+        asyncio.create_task(scheduler_loop())
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    print("🛑 Closing MCP Connections...")
-    await mcp_manager.cleanup()
+    if mcp_manager is not None:
+        print("🛑 Closing MCP Connections...")
+        await mcp_manager.cleanup()
 
 # --- EMAIL UTILS ---
 def send_email_otp(to_email: str, otp: str):
@@ -84,10 +115,6 @@ def send_email_otp(to_email: str, otp: str):
 # --- 🛠️ DEBUGGING: CATCH 422 ERRORS ---
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """
-    This function runs automatically when data format is wrong.
-    It prints the exact JSON received so you can fix the frontend/backend mismatch.
-    """
     try:
         body = await request.body()
         body_str = body.decode()
@@ -101,22 +128,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=422,
         content={"detail": exc.errors()},
     )
-# ---------------------------------------
-
-# --- LIFECYCLE EVENTS ---
-@app.on_event("startup")
-async def startup_event():
-    print("🚀 Initializing MCP Connections...")
-    await mcp_manager.initialize()
-
-    # 🔥 START PROACTIVE MORNING BRIEFING SCHEDULER
-    print("⏰ Starting Morning Briefing Scheduler...")
-    asyncio.create_task(scheduler_loop())
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    print("🛑 Closing MCP Connections...")
-    await mcp_manager.cleanup()
 
 # --- CORS ---
 app.add_middleware(
@@ -129,11 +140,10 @@ app.add_middleware(
 
 # --- DATA MODELS ---
 class FarmerRegistration(BaseModel):
-    # Make sure these match your Frontend JSON keys EXACTLY
     name: str
-    phone_number: str  # Frontend might be sending 'phoneNumber'
+    phone_number: str
     aadhar: str
-    bank_acc: str      # Frontend might be sending 'bankAccount'
+    bank_acc: str
     language: str = "English"
     lat: Optional[float] = None
     long: Optional[float] = None
@@ -170,7 +180,6 @@ def send_otp(request: OTPRequest):
         
         print(f"\n🔐 [OTP SYSTEM] Generated OTP for {identifier}: {otp}\n")
         
-        # Send Email if identifier is an email
         if request.email and "@" in request.email:
             send_email_otp(request.email, otp)
 
@@ -202,7 +211,6 @@ def register_farmer(farmer: FarmerRegistration):
     try:
         print(f"Incoming Data: {farmer.dict()}")
         
-        # Ensure phone number starts with 91
         formatted_phone = farmer.phone_number
         if not formatted_phone.startswith("91"):
             formatted_phone = "91" + formatted_phone
@@ -229,20 +237,21 @@ def register_farmer(farmer: FarmerRegistration):
 
 @app.post("/whatsapp-webhook")
 async def whatsapp_webhook(request: Request):
-    payload = await request.json()
-    print(f"📩 WhatsApp Payload: {payload}")
-    response = await handle_incoming_message(payload)
-    return {"status": "received", "agent_response": response}
+    try:
+        payload = await request.json()
+        logger.info(f"📩 WEBHOOK RECEIVED: {payload}")
+        response = await handle_incoming_message(payload)
+        return {"status": "received", "agent_response": response}
+    except Exception as e:
+        logger.error(f"❌ Webhook Error: {e}")
+        return {"status": "error", "detail": str(e)}
 
 @app.get("/api/test-nasa")
 async def test_nasa(lat: float, lon: float):
-    return await get_nasa_weather(lat, lon)
+    return get_nasa_weather(lat, lon)
 
-# 🔥 DEMO / ADMIN TRIGGER (VERY IMPORTANT)
 @app.post("/admin/run-morning-brief")
 async def run_morning_brief_now():
     """Manually triggers the morning briefing for all farmers."""
-    # Run in background so request returns immediately
     asyncio.create_task(morning_briefing_job())
-
     return {"status": "success", "message": "Morning briefing job has been triggered."}

@@ -1,9 +1,30 @@
+# Node
 node_modules/
+dist
+dist-ssr
+*.local
+bun.lockb
+
+# Python
 __pycache__/
+*.pyc
+
+# Env / secrets
 .env
+
+# OS / Editor
 .DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -11,35 +32,23 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
 # --- Backend generated/runtime ---
 backend/chroma_db/
 backend/knowledge_base/
 backend/store/
 backend/static/audio/
-# ignore generated static artifacts
 backend/static/*.png
 backend/static/*.jpg
 backend/static/*.jpeg
 
+# --- Databases ---
+*.db
+*.sqlite3
+
+# --- Binaries ---
+*.exe
+
 # --- WhatsApp bridge runtime artifacts ---
 whatsapp-mcp/whatsapp-bridge/session.db
-whatsapp-mcp/whatsapp-bridge/*.exe
-
-# --- WhatsApp bridge local state (SQLite) ---
 whatsapp-mcp/whatsapp-bridge/store/*.db
+whatsapp-mcp/whatsapp-bridge/*.exe

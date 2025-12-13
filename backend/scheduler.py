@@ -1,72 +1,63 @@
 import asyncio
-from datetime import datetime
+import os
+from typing import Optional
 
-# Database
-from database import get_all_farmers
+# ✅ REQUIRED IMPORTS (per hackathon rules)
+try:
+    from database import get_all_farmers
+    from agent import generate_morning_brief, send_text_via_bridge
+except ImportError:
+    from backend.database import get_all_farmers
+    from backend.agent import generate_morning_brief, send_text_via_bridge
 
-# AI Agent
-from agent import generate_morning_brief, send_text_via_bridge
 
-async def morning_briefing_job():
+async def morning_briefing_job() -> int:
+    """Send a proactive morning brief to every farmer in the DB.
+
+    Returns number of messages attempted.
     """
-    Runs one full batch of proactive morning briefings
-    for all farmers in the database.
-    """
-    print("🌅 Starting Morning Briefing Job...")
+    farmers = get_all_farmers() or []
+    print(f"🌅 Morning Briefing Job: {len(farmers)} farmers")
 
-    farmers = get_all_farmers()
-    print(f"📋 Found {len(farmers)} farmers in DB")
-
+    attempted = 0
     for farmer in farmers:
         try:
             phone = farmer.get("phone")
-            lat = farmer.get("lat")
-            lon = farmer.get("lon")
-
-            # Fallback if location is nested
-            if not lat or not lon:
-                location = farmer.get("location", {})
-                lat = location.get("lat")
-                lon = location.get("lon")
-
-            if not lat or not lon or not phone:
-                print(f"⚠️ Skipping farmer {farmer.get('name', 'Unknown')} (missing phone/location)")
+            if not phone:
                 continue
 
-            print(f"🔄 Generating briefing for {phone}")
+            # Prefer the stored sender_jid (opt-in / established session)
+            recipient = farmer.get("sender_jid") or farmer.get("last_sender_jid") or farmer.get("whatsapp_jid")
+            if not recipient:
+                # Without an established signal session, proactive sends may fail.
+                # User can opt-in by sending one WhatsApp message to the bot first.
+                continue
 
-            # 🔥 Generate the advisory text
-            message = await generate_morning_brief(farmer)
-
-            # 📲 Send WhatsApp message via the existing bridge function in agent.py
-            await send_text_via_bridge(phone, message)
-
-            # Rate limiting to be safe
-            await asyncio.sleep(1.2)
-
+            msg = await generate_morning_brief(farmer)
+            await send_text_via_bridge(recipient, msg)
+            attempted += 1
+            await asyncio.sleep(0.5)
         except Exception as e:
-            print(f"❌ Error sending briefing to {farmer.get('phone')}: {e}")
+            print(f"❌ Morning brief error for {farmer.get('phone')}: {e}")
+    return attempted
 
-    print("✅ Morning Briefing Job Completed")
 
+async def scheduler_loop() -> None:
+    """Runs once immediately (demo), then sleeps.
 
-async def scheduler_loop():
+    You can override sleep with env var MORNING_BRIEF_SLEEP_SECONDS.
     """
-    Background scheduler loop.
-    Triggers the morning briefing every day at 6:00 AM.
-    """
-    print("⏰ Scheduler loop started")
+    sleep_seconds: Optional[int]
+    try:
+        sleep_seconds = int(os.getenv("MORNING_BRIEF_SLEEP_SECONDS", "86400"))
+    except ValueError:
+        sleep_seconds = 86400
+
+    print("⏰ Scheduler started")
+    print("🚀 Running morning briefing immediately (startup demo)")
+    await morning_briefing_job()
 
     while True:
-        now = datetime.now()
-
-        # Run at 6:00 AM
-        if now.hour == 6 and now.minute == 0:
-            print("⏳ Triggering scheduled morning briefing")
-            await morning_briefing_job()
-
-            # Sleep 60 seconds to avoid duplicate execution
-            await asyncio.sleep(60)
-
-        # Check every 20 seconds
-        await asyncio.sleep(20)
+        print(f"😴 Scheduler sleeping for {sleep_seconds}s")
+        await asyncio.sleep(sleep_seconds)
+        await morning_briefing_job()
