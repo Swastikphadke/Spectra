@@ -1,13 +1,10 @@
 import google.generativeai as genai
 import os
 import logging
-import numpy as np
-import matplotlib.pyplot as plt
-import uuid
 from dotenv import load_dotenv
 
 # Import MCP Client Wrappers
-from mcp_client import get_nasa_weather_mcp, get_gis_data_mcp
+from mcp_client import get_nasa_weather_mcp, get_gis_data_mcp, calculate_ndvi_mcp
 
 load_dotenv()
 logger = logging.getLogger("BRAIN")
@@ -34,46 +31,17 @@ async def get_gis_terrain_data(location_name: str = "Farm"):
     logger.info("🎯 Gemini calling GIS Tool")
     return await get_gis_data_mcp(location_name)
 
-async def generate_ndvi_analysis(lat: float, lon: float, soil_moisture: float = 20.0):
-    """
-    Generates a visual NDVI Crop Health map file based on moisture data.
-    """
-    logger.info(f"🎨 Generating NDVI Map File... Moisture: {soil_moisture}%")
-    
-    # 1. Simulate Grid
-    base_health = min(soil_moisture / 35.0, 0.85)
-    grid = np.full((10, 10), base_health)
-    noise = np.random.normal(0, 0.08, (10, 10))
-    ndvi_grid = np.clip(grid + noise, 0.1, 0.9)
-    
-    avg_ndvi = np.mean(ndvi_grid)
-    status = "Healthy" if avg_ndvi > 0.6 else "Stressed"
-    
-    # 2. Plot Image
-    plt.figure(figsize=(6, 5))
-    plt.imshow(ndvi_grid, cmap='RdYlGn', vmin=0, vmax=1)
-    plt.colorbar(label='NDVI Score')
-    plt.title(f"Spectra Analysis: {status}\nAvg: {avg_ndvi:.2f}")
-    plt.axis('off')
-    
-    # 3. Save LOCALLY
-    filename = f"ndvi_{uuid.uuid4().hex[:6]}.png"
-    static_dir = os.path.join(os.getcwd(), "static")
-    os.makedirs(static_dir, exist_ok=True)
-    
-    file_path = os.path.join(static_dir, filename)
-    plt.savefig(file_path, bbox_inches='tight')
-    plt.close()
-    
-    # 4. Return Data
-    # We return the RELATIVE URL for the link and the ABSOLUTE PATH for the file uploader
-    return {
-        "status": status,
-        "average_ndvi": round(avg_ndvi, 2),
-        "map_url": f"http://localhost:8000/static/{filename}", # For Text Link
-        "image_path": file_path, # For Voice/Image Uploader
-        "advice": "Irrigate immediately" if avg_ndvi < 0.4 else "Crop is stable"
-    }
+async def calculate_ndvi(lat: float, lon: float):
+    """Calculates vegetation health via the GIS MCP tool (calculate_ndvi)."""
+    logger.info("🎯 Gemini calling NDVI Tool")
+    ndvi_raw = await calculate_ndvi_mcp(lat, lon)
+    try:
+        ndvi_val = float(ndvi_raw)
+    except Exception:
+        return {"error": f"Invalid NDVI value: {ndvi_raw}"}
+
+    status = "Healthy" if ndvi_val >= 0.6 else "Moderate" if ndvi_val >= 0.4 else "Stressed"
+    return {"ndvi": round(ndvi_val, 2), "status": status}
 
 # ==========================================
 # ⚙️ EXPORTED TOOLS (THIS WAS MISSING!)
@@ -81,10 +49,10 @@ async def generate_ndvi_analysis(lat: float, lon: float, soil_moisture: float = 
 AVAILABLE_TOOLS = {
     "get_nasa_satellite_weather": get_nasa_satellite_weather,
     "get_gis_terrain_data": get_gis_terrain_data,
-    "generate_ndvi_analysis": generate_ndvi_analysis
+    "calculate_ndvi": calculate_ndvi
 }
 
-tools_list = [get_nasa_satellite_weather, get_gis_terrain_data, generate_ndvi_analysis]
+tools_list = [get_nasa_satellite_weather, get_gis_terrain_data, calculate_ndvi]
 
 # ==========================================
 # 🧠 SYSTEM PROMPT & MODEL
@@ -93,9 +61,14 @@ SYSTEM_PROMPT = """
 You are 'Spectra', a trusted Agricultural Advisor for small farmers in India.
 Your mission is to translate complex satellite data into simple, caring, and actionable advice.
 
+### ✅ HEALTH MODE (MANDATORY)
+If the user asks about "health" / "crop health" / "NDVI", you MUST:
+1) Call `get_nasa_satellite_weather(lat, lon)` to fetch satellite context for that location.
+2) Call `calculate_ndvi(lat, lon)` using the GIS MCP.
+3) Explain the result in simple text (no jargon).
+
 ### 🚫 STRICT RULES:
 1. **NO Jargon:** Never use words like "NDVI", "spectral reflectance", or "chlorophyll". Say "Crop Health" or "Greenness" instead.
-2. **NO Chemical Recipes:** Do not prescribe specific pesticides or chemical dosages.
 3. **TONE:** Polite, respectful, and encouraging (like a wise village elder).
 4. **INTERPRETATION:**
    - Health > 0.6: "Strong, healthy growth."
@@ -116,8 +89,7 @@ Follow this exact layout. Keep it under 120 words.
 [1-2 simple lines. E.g., "The plants are thirsty because rainfall has been low."]
 
 📍 **Field Observation:**
-[Explain the colors. E.g., "Green areas are healthy. Yellow/Red spots in the north show stress."]
-[If a map was generated, insert "View Map: " + `map_url` here.]
+[State the NDVI-based health as a simple sentence.]
 
 ✅ **What You Should Do:**
 [2-3 simple steps. E.g., "1. Visit the yellow spots today. 2. Check soil moisture."]
