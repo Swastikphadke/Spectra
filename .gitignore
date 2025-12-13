@@ -26,3 +26,32 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# RAG / Vector DB runtime
+backend/chroma_db/
+backend/store/
+backend/knowledge_base/
+
+# Generated media
+backend/static/audio/
+backend/static/*.png
+
+# Databases
+*.db
+*.sqlite3
+
+# Binaries
+*.exe
+
+# Node
+node_modules/
+
+# MCP runtime
+whatsapp-mcp/whatsapp-bridge/store/
+whatsapp-mcp/whatsapp-bridge/session.db
