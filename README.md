@@ -210,4 +210,4 @@ The agent uses a hardened JSON extraction + fallback-to-text to avoid crashes. I
 ---
 
 ## License
-Hackathon/demo use. Add a license if you plan to open-source.
+Hackathon/demo use
