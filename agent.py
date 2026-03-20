@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 import json
 import re
@@ -118,8 +119,7 @@ async def main():
                                                 # --- BRAIN LOGIC ---
                                                 reply = ""
                                                 if "nasa" in text.lower():
-                                                    print(
-                                                        "   🛰️ Querying NASA...")
+                                                    print("   🛰️ Querying NASA...")
                                                     try:
                                                         res = await nasa_sess.call_tool(
                                                             "nasa_apod", arguments={}
@@ -129,8 +129,7 @@ async def main():
                                                         if content.strip().startswith(
                                                             "{"
                                                         ):
-                                                            data = json.loads(
-                                                                content)
+                                                            data = json.loads(content)
                                                             reply = f"🛰️ NASA: {data.get('title', 'Space Data')}"
                                                         else:
                                                             reply = f"🛰️ NASA: {content[:100]}..."
@@ -138,8 +137,7 @@ async def main():
                                                         reply = "NASA Error."
 
                                                 elif "map" in text.lower():
-                                                    print(
-                                                        "   🗺️ Querying GIS...")
+                                                    print("   🗺️ Querying GIS...")
                                                     try:
                                                         res = await gis_sess.call_tool(
                                                             "get_coordinates",
@@ -172,8 +170,7 @@ async def main():
 
                                     try:
                                         # ✅ FIX 1: The bridge demands 'recipient', not 'phone'
-                                        payload = {"recipient": jid,
-                                                   "message": content}
+                                        payload = {"recipient": jid, "message": content}
 
                                         # Debug: See exactly what we send
                                         # print(f"      [Debug Payload] {payload}")
@@ -190,8 +187,7 @@ async def main():
                                             )
 
                                     except Exception as e:
-                                        print(
-                                            f"      ❌ Connection Failed: {e}")
+                                        print(f"      ❌ Connection Failed: {e}")
                                         print(
                                             "      (Check if bridge is running on port 8080)"
                                         )

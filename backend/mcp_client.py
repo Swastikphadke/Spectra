@@ -34,8 +34,7 @@ class MCPClientManager:
 
         # 2. GIS MCP
         gis_params = StdioServerParameters(
-            command=PYTHON_PATH, args=[GIS_MCP_PATH], env={
-                "PYTHONUNBUFFERED": "1"}
+            command=PYTHON_PATH, args=[GIS_MCP_PATH], env={"PYTHONUNBUFFERED": "1"}
         )
 
         try:

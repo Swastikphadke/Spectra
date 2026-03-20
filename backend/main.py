@@ -120,8 +120,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     try:
         body = await request.body()
         print("\n❌ REGISTRATION FAILED: Data Format Mismatch")
-        print(
-            f"📥 Incoming JSON from Frontend: {body.decode(errors='replace')}")
+        print(f"📥 Incoming JSON from Frontend: {body.decode(errors='replace')}")
         print(f"⚠️ Specific Error: {exc.errors()}\n")
     except Exception:
         print("Could not print error details.")
@@ -358,8 +357,7 @@ async def cluster_analysis_api(req: ClusterRequest):
 
     for i in range(1, 6):
         n_ndvi = (
-            random.uniform(
-                0.6, 0.8) if is_possible_fraud else random.uniform(0.1, 0.3)
+            random.uniform(0.6, 0.8) if is_possible_fraud else random.uniform(0.1, 0.3)
         )
         neighbors.append(
             {

@@ -55,8 +55,7 @@ async def send_voice_note(
         with open(abs_path, "rb") as f:
             file_bytes = f.read()
 
-        files = {"file": (os.path.basename(abs_path),
-                          file_bytes, "audio/mpeg")}
+        files = {"file": (os.path.basename(abs_path), file_bytes, "audio/mpeg")}
         data = {
             "recipient": recipient_jid,
             "phone": recipient_jid,

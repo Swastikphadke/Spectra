@@ -76,10 +76,8 @@ def main():
 
     # Start threads to handle streams
     t_in = threading.Thread(target=forward_stdin, args=(process,), daemon=True)
-    t_err = threading.Thread(target=forward_stderr,
-                             args=(process,), daemon=True)
-    t_out = threading.Thread(target=filter_stdout,
-                             args=(process,), daemon=True)
+    t_err = threading.Thread(target=forward_stderr, args=(process,), daemon=True)
+    t_out = threading.Thread(target=filter_stdout, args=(process,), daemon=True)
 
     t_in.start()
     t_err.start()

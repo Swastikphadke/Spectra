@@ -43,8 +43,7 @@ def test_webhook_water():
 def test_webhook_unknown():
     print("\n--- Testing WhatsApp Webhook (Unknown User) ---")
     # This simulates a message from a user NOT in the DB
-    payload = {"from": "whatsapp:+910000000000",
-               "type": "text", "content": "Hello"}
+    payload = {"from": "whatsapp:+910000000000", "type": "text", "content": "Hello"}
     try:
         response = requests.post(f"{BASE_URL}/whatsapp-webhook", json=payload)
         print(f"Status: {response.status_code}")

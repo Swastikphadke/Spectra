@@ -88,8 +88,7 @@ async def _handle_health_request(user: dict, recipient_id: str) -> None:
 
         await send_text_via_bridge(recipient_id, text_part)
 
-        lang = "hi" if "hindi" in str(
-            user.get("language", "")).lower() else "en"
+        lang = "hi" if "hindi" in str(user.get("language", "")).lower() else "en"
         await send_voice_note(recipient_id, voice_part, language=lang)
 
     except Exception as e:
@@ -112,8 +111,7 @@ def _safe_import_rag() -> Optional[Callable[[str], str]]:
 def _configure_gemini() -> None:
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError(
-            "Missing GOOGLE_API_KEY (or GEMINI_API_KEY) in environment")
+        raise RuntimeError("Missing GOOGLE_API_KEY (or GEMINI_API_KEY) in environment")
     genai.configure(api_key=api_key)
 
 
@@ -149,7 +147,7 @@ def _extract_json_object(text: str) -> Dict[str, Any]:
     if start == -1 or end == -1 or end <= start:
         raise ValueError(f"No JSON object found in: {text[:200]}")
 
-    candidate = text[start: end + 1]
+    candidate = text[start : end + 1]
 
     # Remove raw control characters that break json.loads (keep \t\n\r)
     # This does NOT fix all malformed JSON, but prevents hard crashes.
@@ -160,8 +158,7 @@ def _extract_json_object(text: str) -> Dict[str, Any]:
     except json.JSONDecodeError:
         # Common failure: the model puts real newlines/tabs inside JSON strings.
         # Flatten whitespace and retry. This keeps JSON valid and avoids crashing.
-        flattened = candidate.replace("\r", " ").replace(
-            "\n", " ").replace("\t", " ")
+        flattened = candidate.replace("\r", " ").replace("\n", " ").replace("\t", " ")
         flattened = re.sub(r"\s+", " ", flattened).strip()
         try:
             return json.loads(flattened)
@@ -237,8 +234,7 @@ async def _gemini_with_tools(prompt: str, max_steps: int = 4) -> str:
             if not isinstance(args, dict):
                 args = {}
             tool_results.append(
-                {"tool": tool_name, "args": args,
-                    "result": _run_tool(tool_name, args)}
+                {"tool": tool_name, "args": args, "result": _run_tool(tool_name, args)}
             )
             continue
 
@@ -283,8 +279,7 @@ async def handle_incoming_message(payload: dict):
         return "Ignored"
 
     # Use the specific device JID if available, otherwise fallback to phone number
-    recipient_id = reply_to_jid if reply_to_jid else resolve_jid(
-        phone_number_raw)
+    recipient_id = reply_to_jid if reply_to_jid else resolve_jid(phone_number_raw)
 
     clean_phone = (
         phone_number_raw.replace("whatsapp:", "")
@@ -354,8 +349,7 @@ async def handle_incoming_message(payload: dict):
 
             if voice_part:
                 lang = (
-                    "hi" if "hindi" in str(
-                        user.get("language", "")).lower() else "en"
+                    "hi" if "hindi" in str(user.get("language", "")).lower() else "en"
                 )
                 await send_voice_note(recipient_id, voice_part, language=lang)
         else:
