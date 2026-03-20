@@ -38,7 +38,9 @@ def generate_mp3(text: str, language: str = "en") -> Dict[str, str]:
     }
 
 
-async def send_voice_note(recipient_jid: str, text: str, language: str = "en") -> Optional[str]:
+async def send_voice_note(
+    recipient_jid: str, text: str, language: str = "en"
+) -> Optional[str]:
     """Generate an MP3 voice note and upload it to the WhatsApp bridge.
 
     Returns the public URL path (served by FastAPI) if generation succeeds.
@@ -53,7 +55,8 @@ async def send_voice_note(recipient_jid: str, text: str, language: str = "en") -
         with open(abs_path, "rb") as f:
             file_bytes = f.read()
 
-        files = {"file": (os.path.basename(abs_path), file_bytes, "audio/mpeg")}
+        files = {"file": (os.path.basename(abs_path),
+                          file_bytes, "audio/mpeg")}
         data = {
             "recipient": recipient_jid,
             "phone": recipient_jid,
@@ -61,10 +64,14 @@ async def send_voice_note(recipient_jid: str, text: str, language: str = "en") -
         }
 
         async with httpx.AsyncClient() as client:
-            resp = await client.post(BRIDGE_AUDIO_URL, data=data, files=files, timeout=60)
+            resp = await client.post(
+                BRIDGE_AUDIO_URL, data=data, files=files, timeout=60
+            )
 
         if resp.status_code != 200:
-            logger.warning("Bridge rejected MP3 upload (%s): %s", resp.status_code, resp.text)
+            logger.warning(
+                "Bridge rejected MP3 upload (%s): %s", resp.status_code, resp.text
+            )
 
         return mp3["url_path"]
     except Exception as e:
