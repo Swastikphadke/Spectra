@@ -21,15 +21,18 @@ genai.configure(api_key=api_key)
 # 🛰️ TOOL DEFINITIONS
 # ==========================================
 
+
 async def get_nasa_satellite_weather(lat: float, lon: float):
     """Fetches real-time weather and rainfall data from NASA satellites."""
     logger.info(f"🎯 Gemini calling NASA Tool for Lat: {lat}, Lon: {lon}")
     return await get_nasa_weather_mcp(lat, lon)
 
+
 async def get_gis_terrain_data(location_name: str = "Farm"):
     """Fetches GIS data including elevation/slope."""
     logger.info("🎯 Gemini calling GIS Tool")
     return await get_gis_data_mcp(location_name)
+
 
 async def calculate_ndvi(lat: float, lon: float):
     """Calculates vegetation health via the GIS MCP tool (calculate_ndvi)."""
@@ -40,8 +43,11 @@ async def calculate_ndvi(lat: float, lon: float):
     except Exception:
         return {"error": f"Invalid NDVI value: {ndvi_raw}"}
 
-    status = "Healthy" if ndvi_val >= 0.6 else "Moderate" if ndvi_val >= 0.4 else "Stressed"
+    status = (
+        "Healthy" if ndvi_val >= 0.6 else "Moderate" if ndvi_val >= 0.4 else "Stressed"
+    )
     return {"ndvi": round(ndvi_val, 2), "status": status}
+
 
 # ==========================================
 # ⚙️ EXPORTED TOOLS (THIS WAS MISSING!)
@@ -49,7 +55,7 @@ async def calculate_ndvi(lat: float, lon: float):
 AVAILABLE_TOOLS = {
     "get_nasa_satellite_weather": get_nasa_satellite_weather,
     "get_gis_terrain_data": get_gis_terrain_data,
-    "calculate_ndvi": calculate_ndvi
+    "calculate_ndvi": calculate_ndvi,
 }
 
 tools_list = [get_nasa_satellite_weather, get_gis_terrain_data, calculate_ndvi]
@@ -108,7 +114,5 @@ Follow this exact layout. Keep it under 120 words.
 """
 
 model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash", 
-    tools=tools_list,
-    system_instruction=SYSTEM_PROMPT
+    model_name="gemini-2.5-flash", tools=tools_list, system_instruction=SYSTEM_PROMPT
 )

@@ -27,7 +27,11 @@ async def morning_briefing_job() -> int:
                 continue
 
             # Prefer the stored sender_jid (opt-in / established session)
-            recipient = farmer.get("sender_jid") or farmer.get("last_sender_jid") or farmer.get("whatsapp_jid")
+            recipient = (
+                farmer.get("sender_jid")
+                or farmer.get("last_sender_jid")
+                or farmer.get("whatsapp_jid")
+            )
             if not recipient:
                 # Without an established signal session, proactive sends may fail.
                 # User can opt-in by sending one WhatsApp message to the bot first.

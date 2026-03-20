@@ -1,4 +1,13 @@
 from __future__ import annotations
+from scheduler import morning_briefing_job, scheduler_loop
+from database import (
+    create_claim_record,
+    get_all_claims_data,
+    get_all_farmers_with_risk,
+    save_user,
+    update_claim_status,
+)
+from agent import handle_incoming_message
 
 import asyncio
 import os
@@ -19,15 +28,6 @@ from pydantic import BaseModel
 # Load .env from repo root (d:\Spectra\.env)
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
-from agent import handle_incoming_message
-from database import (
-    create_claim_record,
-    get_all_claims_data,
-    get_all_farmers_with_risk,
-    save_user,
-    update_claim_status,
-)
-from scheduler import morning_briefing_job, scheduler_loop
 
 # MCP is optional at runtime (so backend can start even if MCP deps missing)
 try:
@@ -120,7 +120,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     try:
         body = await request.body()
         print("\n❌ REGISTRATION FAILED: Data Format Mismatch")
-        print(f"📥 Incoming JSON from Frontend: {body.decode(errors='replace')}")
+        print(
+            f"📥 Incoming JSON from Frontend: {body.decode(errors='replace')}")
         print(f"⚠️ Specific Error: {exc.errors()}\n")
     except Exception:
         print("Could not print error details.")
@@ -259,9 +260,11 @@ def register_farmer(farmer: FarmerRegistration):
             "status": "success",
             "message": "Farmer Registered",
             "user_id": str(result),
-            "next_step": "Waiting for location via WhatsApp"
-            if not farmer.lat
-            else "Fetching NASA Data...",
+            "next_step": (
+                "Waiting for location via WhatsApp"
+                if not farmer.lat
+                else "Fetching NASA Data..."
+            ),
         }
     except Exception as e:
         print(f"Error saving user: {e}")
@@ -337,11 +340,11 @@ async def calculate_premium_api(req: PremiumRequest):
     return {
         "success": True,
         "premium": final_premium,
-        "risk_level": "High"
-        if drought_risk_score > 7
-        else "Moderate"
-        if drought_risk_score > 4
-        else "Low",
+        "risk_level": (
+            "High"
+            if drought_risk_score > 7
+            else "Moderate" if drought_risk_score > 4 else "Low"
+        ),
         "breakdown": f"Base ({base_rate}) + Risk Charge ({drought_risk_score * multiplier})",
     }
 
@@ -354,7 +357,10 @@ async def cluster_analysis_api(req: ClusterRequest):
     is_possible_fraud = random.choice([True, False])
 
     for i in range(1, 6):
-        n_ndvi = random.uniform(0.6, 0.8) if is_possible_fraud else random.uniform(0.1, 0.3)
+        n_ndvi = (
+            random.uniform(
+                0.6, 0.8) if is_possible_fraud else random.uniform(0.1, 0.3)
+        )
         neighbors.append(
             {
                 "id": f"Neighbor-{i}",
@@ -364,7 +370,11 @@ async def cluster_analysis_api(req: ClusterRequest):
         )
 
     avg_neighbor_ndvi = sum(n["ndvi"] for n in neighbors) / 5
-    verdict = "POSSIBLE FRAUD" if (avg_neighbor_ndvi - claimant_ndvi) > 0.3 else "GENUINE DISASTER"
+    verdict = (
+        "POSSIBLE FRAUD"
+        if (avg_neighbor_ndvi - claimant_ndvi) > 0.3
+        else "GENUINE DISASTER"
+    )
 
     return {
         "success": True,

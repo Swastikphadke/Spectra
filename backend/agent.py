@@ -42,11 +42,14 @@ async def _handle_health_request(user: dict, recipient_id: str) -> None:
         lon = user.get("lon") or (user.get("location", {}) or {}).get("lon")
         crop = user.get("crop", "crop")
         if lat is None or lon is None:
-            await send_text_via_bridge(recipient_id, "⚠️ I need your farm location (lat/lon) to check crop health.")
+            await send_text_via_bridge(
+                recipient_id,
+                "⚠️ I need your farm location (lat/lon) to check crop health.",
+            )
             return
 
         # NASA MCP: fetch satellite weather/soil moisture for this location (best-effort)
-        nasa_raw = await get_nasa_weather_mcp(float(lat), float(lon))
+        await get_nasa_weather_mcp(float(lat), float(lon))
 
         # GIS MCP: NDVI (mocked by GIS-Real server)
         ndvi_raw = await calculate_ndvi_mcp(float(lat), float(lon))
@@ -85,12 +88,15 @@ async def _handle_health_request(user: dict, recipient_id: str) -> None:
 
         await send_text_via_bridge(recipient_id, text_part)
 
-        lang = "hi" if "hindi" in str(user.get("language", "")).lower() else "en"
+        lang = "hi" if "hindi" in str(
+            user.get("language", "")).lower() else "en"
         await send_voice_note(recipient_id, voice_part, language=lang)
 
     except Exception as e:
         logger.error("Health request failed: %s", e, exc_info=True)
-        await send_text_via_bridge(recipient_id, "⚠️ Couldn't fetch crop health right now. Please try again.")
+        await send_text_via_bridge(
+            recipient_id, "⚠️ Couldn't fetch crop health right now. Please try again."
+        )
 
 
 def _safe_import_rag() -> Optional[Callable[[str], str]]:
@@ -106,7 +112,8 @@ def _safe_import_rag() -> Optional[Callable[[str], str]]:
 def _configure_gemini() -> None:
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError("Missing GOOGLE_API_KEY (or GEMINI_API_KEY) in environment")
+        raise RuntimeError(
+            "Missing GOOGLE_API_KEY (or GEMINI_API_KEY) in environment")
     genai.configure(api_key=api_key)
 
 
@@ -131,7 +138,9 @@ def _extract_json_object(text: str) -> Dict[str, Any]:
         raise ValueError("Empty model response")
 
     # Common Gemini failure mode: wraps JSON in ```json fences
-    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL | re.IGNORECASE)
+    fenced = re.search(
+        r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL | re.IGNORECASE
+    )
     if fenced:
         text = fenced.group(1)
 
@@ -140,7 +149,7 @@ def _extract_json_object(text: str) -> Dict[str, Any]:
     if start == -1 or end == -1 or end <= start:
         raise ValueError(f"No JSON object found in: {text[:200]}")
 
-    candidate = text[start : end + 1]
+    candidate = text[start: end + 1]
 
     # Remove raw control characters that break json.loads (keep \t\n\r)
     # This does NOT fix all malformed JSON, but prevents hard crashes.
@@ -151,7 +160,8 @@ def _extract_json_object(text: str) -> Dict[str, Any]:
     except json.JSONDecodeError:
         # Common failure: the model puts real newlines/tabs inside JSON strings.
         # Flatten whitespace and retry. This keeps JSON valid and avoids crashing.
-        flattened = candidate.replace("\r", " ").replace("\n", " ").replace("\t", " ")
+        flattened = candidate.replace("\r", " ").replace(
+            "\n", " ").replace("\t", " ")
         flattened = re.sub(r"\s+", " ", flattened).strip()
         try:
             return json.loads(flattened)
@@ -191,14 +201,16 @@ async def _gemini_with_tools(prompt: str, max_steps: int = 4) -> str:
 
         protocol = (
             "Return ONLY valid JSON (no Markdown, no code fences). Choose ONE:\n"
-            "- Tool call: {\"tool\": \"tool_name\", \"args\": {...}}\n"
-            "- Final answer: {\"final\": \"text\"}\n"
+            '- Tool call: {"tool": "tool_name", "args": {...}}\n'
+            '- Final answer: {"final": "text"}\n'
             "If you need newlines inside a string, write them as \\n (escaped).\n"
         )
 
         tool_ctx = ""
         if tool_results:
-            tool_ctx = "\n\nTOOL_RESULTS (most recent last):\n" + json.dumps(tool_results, ensure_ascii=False)
+            tool_ctx = "\n\nTOOL_RESULTS (most recent last):\n" + json.dumps(
+                tool_results, ensure_ascii=False
+            )
 
         full_prompt = (
             protocol
@@ -214,7 +226,9 @@ async def _gemini_with_tools(prompt: str, max_steps: int = 4) -> str:
         try:
             data = _extract_json_object(raw_text)
         except Exception as e:
-            logger.warning("Gemini returned non-JSON; falling back to plain text (%s)", e)
+            logger.warning(
+                "Gemini returned non-JSON; falling back to plain text (%s)", e
+            )
             return raw_text.strip() or ""
 
         if isinstance(data, dict) and data.get("tool"):
@@ -222,7 +236,10 @@ async def _gemini_with_tools(prompt: str, max_steps: int = 4) -> str:
             args = data.get("args")
             if not isinstance(args, dict):
                 args = {}
-            tool_results.append({"tool": tool_name, "args": args, "result": _run_tool(tool_name, args)})
+            tool_results.append(
+                {"tool": tool_name, "args": args,
+                    "result": _run_tool(tool_name, args)}
+            )
             continue
 
         final = data.get("final") if isinstance(data, dict) else None
@@ -234,36 +251,54 @@ async def _gemini_with_tools(prompt: str, max_steps: int = 4) -> str:
 
     # If we hit max tool steps, provide best-effort summary
     if tool_results:
-        return "Here is what I found: " + json.dumps(tool_results[-1]["result"], ensure_ascii=False)
+        return "Here is what I found: " + json.dumps(
+            tool_results[-1]["result"], ensure_ascii=False
+        )
     return ""
 
+
 def resolve_jid(sender_raw):
-    sender = sender_raw.strip().replace("whatsapp:", "").replace("+", "").replace(" ", "")
-    if "@" in sender: return sender
-    if len(sender) >= 15: return f"{sender}@lid"
+    sender = (
+        sender_raw.strip().replace("whatsapp:", "").replace("+", "").replace(" ", "")
+    )
+    if "@" in sender:
+        return sender
+    if len(sender) >= 15:
+        return f"{sender}@lid"
     return f"{sender}@s.whatsapp.net"
+
 
 # ==========================================
 # 🧠 MAIN AUTONOMOUS AGENT
 # ==========================================
 async def handle_incoming_message(payload: dict):
     # "from" is now the Phone Number (thanks to main.go fix)
-    phone_number_raw = payload.get("from", "") 
+    phone_number_raw = payload.get("from", "")
     # "sender_jid" is the specific device (LID) to reply to
-    reply_to_jid = payload.get("sender_jid", "") 
-    
+    reply_to_jid = payload.get("sender_jid", "")
+
     user_text = payload.get("content", "")
 
-    if not phone_number_raw: return "Ignored"
+    if not phone_number_raw:
+        return "Ignored"
 
     # Use the specific device JID if available, otherwise fallback to phone number
-    recipient_id = reply_to_jid if reply_to_jid else resolve_jid(phone_number_raw)
+    recipient_id = reply_to_jid if reply_to_jid else resolve_jid(
+        phone_number_raw)
 
-    clean_phone = phone_number_raw.replace("whatsapp:", "").replace("+", "").replace(" ", "").strip()
+    clean_phone = (
+        phone_number_raw.replace("whatsapp:", "")
+        .replace("+", "")
+        .replace(" ", "")
+        .strip()
+    )
     user = get_user_by_phone(clean_phone)
 
     if not user:
-        await send_text_via_bridge(recipient_id, "Welcome to Spectra! 🌾\nI don't recognize this number. Please register via the app first.")
+        await send_text_via_bridge(
+            recipient_id,
+            "Welcome to Spectra! 🌾\nI don't recognize this number. Please register via the app first.",
+        )
         return "Register Prompt"
 
     # If user asks about crop health, do the deterministic NASA+GIS MCP flow
@@ -298,9 +333,7 @@ async def handle_incoming_message(payload: dict):
             "Keep answers simple, practical, and safe.\n\n"
             f"Farmer name: {user.get('name')}\n"
             f"Crop: {user.get('crop', 'crop')}\n"
-            f"Location: lat={lat}, lon={lon}\n"
-            + rag_text
-            + "\n\n"
+            f"Location: lat={lat}, lon={lon}\n" + rag_text + "\n\n"
             "Respond in TWO parts separated by the divider '===VOICE_SUMMARY==='\n"
             "Part 1: WhatsApp text (<=120 words).\n"
             "Part 2: voice script (<=2 short sentences).\n\n"
@@ -320,7 +353,10 @@ async def handle_incoming_message(payload: dict):
                 await send_text_via_bridge(recipient_id, text_part)
 
             if voice_part:
-                lang = "hi" if "hindi" in str(user.get("language", "")).lower() else "en"
+                lang = (
+                    "hi" if "hindi" in str(
+                        user.get("language", "")).lower() else "en"
+                )
                 await send_voice_note(recipient_id, voice_part, language=lang)
         else:
             await send_text_via_bridge(recipient_id, ai_reply)
@@ -331,32 +367,30 @@ async def handle_incoming_message(payload: dict):
 
     return "Done"
 
+
 # --- 📤 TEXT SENDER ---
 async def send_text_via_bridge(to_jid: str, text: str):
     async with httpx.AsyncClient() as client:
-        payload = {
-            "recipient": to_jid,
-            "phone": to_jid,
-            "message": text
-        }
-        
+        payload = {"recipient": to_jid, "phone": to_jid, "message": text}
+
         endpoints = ["/api/send", "/send/text", "/send"]
-        
+
         for endpoint in endpoints:
             url = f"{BRIDGE_BASE_URL}{endpoint}"
             try:
                 resp = await client.post(url, json=payload, timeout=5)
-                
+
                 if resp.status_code == 200:
                     print(f"✅ Message Delivered via {endpoint}!")
-                    return 
+                    return
                 elif resp.status_code != 404:
                     print(f"⚠️ Bridge Error ({resp.status_code}): {resp.text}")
-                    return 
+                    return
             except Exception as e:
                 print(f"❌ Connection Error to {endpoint}: {e}")
 
         print("❌ Failed to send message on all known endpoints.")
+
 
 # =========================================================
 # 🔥 NEW FEATURE — Proactive Morning Brief (Scheduler Use)
