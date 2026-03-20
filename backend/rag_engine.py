@@ -17,8 +17,7 @@ DB_PATH = "chroma_db"
 
 # CHANGE: Initialize Local Embeddings (Runs on CPU, No API Limits)
 # This downloads a small model (~80MB) once.
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2")
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 
 def build_vector_store():
@@ -27,8 +26,7 @@ def build_vector_store():
     """
     if not os.path.exists(PDF_FOLDER):
         os.makedirs(PDF_FOLDER)
-        logger.warning(
-            f"⚠️ Created folder '{PDF_FOLDER}'. Please put PDF files there.")
+        logger.warning(f"⚠️ Created folder '{PDF_FOLDER}'. Please put PDF files there.")
         return None
 
     logger.info("📚 Loading PDFs...")
@@ -40,12 +38,10 @@ def build_vector_store():
         return None
 
     logger.info(f"📄 Loaded {len(docs)} pages. Splitting text...")
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000, chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = text_splitter.split_documents(docs)
 
-    logger.info(
-        f"💾 Found {len(chunks)} chunks. Saving to ChromaDB (Local Mode)...")
+    logger.info(f"💾 Found {len(chunks)} chunks. Saving to ChromaDB (Local Mode)...")
 
     # No batching needed for local models, but good practice to keep it simple
     try:
@@ -77,8 +73,7 @@ def get_rag_context(query: str):
         build_vector_store()
 
     try:
-        vector_store = Chroma(persist_directory=DB_PATH,
-                              embedding_function=embeddings)
+        vector_store = Chroma(persist_directory=DB_PATH, embedding_function=embeddings)
         # Search for top 3 relevant chunks
         results = vector_store.similarity_search(query, k=3)
 
